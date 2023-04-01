@@ -16,12 +16,13 @@ namespace BDFramework.Editor.EditorPipeline.BuildPipeline
         protected override OdinMenuTree BuildMenuTree()
         {
 #if ODIN_INSPECTOR
-            
-
             var tree = new OdinMenuTree(true);
             tree.DefaultMenuStyle.IconSize = 20.00f;
-
-            var setting = BDEditorApplication.BDFrameworkEditorSetting;
+            var setting = BDEditorApplication.EditorSetting;
+            if (setting == null)
+            {
+                return tree;
+            }
 
             tree.Add("Build", null, EditorIcons.SmartPhone);
             tree.Add($"Build/{BApplication.GetPlatformPath(RuntimePlatform.Android)}", new BuildAndroid(setting.Android, setting.AndroidDebug));
@@ -30,7 +31,6 @@ namespace BDFramework.Editor.EditorPipeline.BuildPipeline
             tree.Add($"Build/{BApplication.GetPlatformPath(RuntimePlatform.OSXPlayer)}(待实现)", new BuildMacOSX());
             // tree.Add($"Build/{BApplication.GetPlatformPath(RuntimePlatform.OSXPlayer)}", new BuildAndroid());
             // tree.Add($"Build/{BApplication.GetPlatformPath(RuntimePlatform.WindowsPlayer)}", new BuildAndroid());
-
             // tree.Add("Test", EditorWindow.GetWindow<EditorWindow_BDFrameworkConfig>());
             //设置
             tree.Add("Player Settings", Resources.FindObjectsOfTypeAll<PlayerSettings>().FirstOrDefault());
@@ -53,7 +53,7 @@ namespace BDFramework.Editor.EditorPipeline.BuildPipeline
         //保存设置
         protected override void OnDestroy()
         {
-            BDEditorApplication.BDFrameworkEditorSetting?.Save();
+            BDEditorApplication.EditorSetting?.Save();
         }
     }
 }

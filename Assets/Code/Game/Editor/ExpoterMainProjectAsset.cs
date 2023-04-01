@@ -20,11 +20,10 @@ public class ExpoterMainProjectAsset
     {
         var targetPath = "Assets/Code/BDFramework.Game/ILRuntime/Binding/Analysis";
         //1.分析之前先删除,然后生成临时文件防止报错
-        // if (Directory.Exists(targetPath))
-        // {
-        //     Directory.Delete(targetPath, true);
-        // }
-
+        if (Directory.Exists(targetPath))
+        {
+            Directory.Delete(targetPath, true);
+        }
         var fileContent = @"
         namespace ILRuntime.Runtime.Generated
         {
@@ -40,17 +39,18 @@ public class ExpoterMainProjectAsset
             } 
         }   ";
         FileHelper.WriteAllText(targetPath + "/CLRBindings.cs", fileContent);
-
         AssetDatabase.Refresh();
 
+        //
         var exporterDirectoryList = new string[]
         {
             "Assets/3rdPlugins/Dotween", // 第三方插件
             "Assets/Code/BDFramework.Game", //Game
             "Assets/Code/Game/Demo", //Game demo
-            "Assets/Scenes", //Scene
+            "Assets/Scenes", //Scenes
             BResources.MIX_SOURCE_FOLDER,//混淆源文件
             "Assets/AssetGraph/BResourceAssetBundleConfig.asset", //SG
+            "Assets/Code/Game/Client.cs", //Client.cs
             "Assets/link.xml",
         };
         var exportAssets = new List<string>();
@@ -110,16 +110,17 @@ public class ExpoterMainProjectAsset
         var bdlauncher = GameObject.Find("BDFrame").GetComponent<BDLauncher>();
         bdlauncher.ConfigText = AssetDatabase.LoadAssetAtPath<TextAsset>(AssetDatabase.GUIDToAssetPath("517ff72e71a574546a91d76ad65770c9"));
         var config = GameObject.Find("BDFrame").GetComponent<Config>();
-        config.Data.CodeRoot = AssetLoadPathType.Persistent;
-        config.Data.SQLRoot = AssetLoadPathType.Persistent;
-        config.Data.ArtRoot = AssetLoadPathType.Persistent;
+        // config.Data.CodeRoot = AssetLoadPathType.Persistent;
+        // config.Data.SQLRoot = AssetLoadPathType.Persistent;
+        // config.Data.ArtRoot = AssetLoadPathType.Persistent;
+        
         AssetDatabase.SaveAssets();
         //切换成Editor.json
         bdlauncher.ConfigText = AssetDatabase.LoadAssetAtPath<TextAsset>(AssetDatabase.GUIDToAssetPath("dac4b223fdff90143ac6a3d1980e120b"));
-         config = GameObject.Find("BDFrame").GetComponent<Config>();
-        config.Data.CodeRoot = AssetLoadPathType.Editor;
-        config.Data.SQLRoot = AssetLoadPathType.Editor;
-        config.Data.ArtRoot = AssetLoadPathType.Editor;
+        config = GameObject.Find("BDFrame").GetComponent<Config>();
+        // config.Data.CodeRoot = AssetLoadPathType.Editor;
+        // config.Data.SQLRoot = AssetLoadPathType.Editor;
+        // config.Data.ArtRoot = AssetLoadPathType.Editor;
         AssetDatabase.SaveAssets();
         
         #endregion

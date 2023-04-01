@@ -20,15 +20,16 @@ namespace BDFramework.Editor.Table
         static public void OnForceImpotChangedExcel()
         {
             //判断是否导入设置
-            if (BDEditorApplication.BDFrameworkEditorSetting.BuildSqlSetting.IsForceImportChangedExcelOnWillEnterPlaymode)
+            if (BDEditorApplication.EditorSetting.BuildSqlSetting.IsForceImportChangedExcelOnWillEnterPlaymode)
             {
+                Debug.Log("【EditorTask】数据库校验...");
                 var dbPath = SqliteLoder.GetLocalDBPath(Application.streamingAssetsPath, BApplication.RuntimePlatform);
                 //获取差异
                 var (changedExcelList, newEcxcelInfoMap) = ExcelEditorTools.GetChangedExcelsFromLocalSql(dbPath);
                 //
                 if (changedExcelList.Count > 0)
                 {
-                    BDebug.Log("-----------------强制导入修改的excel文件.begin-----------------", "red");
+                    BDebug.Log("-----------------强制导入修改的excel文件.begin-----------------", Color.red);
 
                     SqliteLoder.LoadSQLOnEditor(dbPath);
                     {
@@ -42,7 +43,7 @@ namespace BDFramework.Editor.Table
                     SqliteLoder.Close();
                     
                     Excel2SQLiteTools.CopySqlToOther(Application.streamingAssetsPath, BApplication.RuntimePlatform);
-                    BDebug.Log("-----------------强制导入修改的excel文件.end-----------------", "red");
+                    BDebug.Log("-----------------强制导入修改的excel文件.end-----------------", Color.red);
 
                     ExcelEditorTools.SaveExcelCacheInfo(newEcxcelInfoMap);
                     //db_hash
@@ -67,10 +68,11 @@ namespace BDFramework.Editor.Table
                 //     }
                 //     SqliteLoder.Close();
                 //
-                //     BDebug.Log("-----------------强制导入修改的excel文件.end-----------------", "red");
+                //     BDebug.Log("-----------------强制导入修改的excel文件.end-----------------", Color.red);
                 //     ExcelEditorTools.SaveLocalDBCacheInfo(dbPath);
                 // }
                 //保存配置
+                Debug.Log("【EditorTask】校验完成!");
             }
         }
     }

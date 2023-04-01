@@ -74,6 +74,11 @@ namespace System.IO
         /// <param name="targetDirt"></param>
         static public void CopyFolderTo(string sourceDirt, string targetDirt)
         {
+            if (!Directory.Exists(sourceDirt))
+            {
+                return;
+            }
+            
             var sourceFilePaths = Directory.GetFiles(sourceDirt, "*", SearchOption.AllDirectories);
             var sourceDirts = Directory.GetDirectories(sourceDirt, "*", SearchOption.TopDirectoryOnly);
             //创建文件夹
@@ -91,7 +96,7 @@ namespace System.IO
             {
                 var targetfilePath = sfp.Replace(sourceDirt, targetDirt);
                 //复制
-                File.Copy(sfp, targetfilePath);
+                FileHelper.Copy(sfp, targetfilePath,true);
             }
         }
 

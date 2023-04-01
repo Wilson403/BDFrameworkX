@@ -7,6 +7,7 @@ using System.Linq;
 using BDFramework.Core.Tools;
 using BDFramework.Editor.Environment;
 using BDFramework.Editor.Tools;
+using BDFramework.Editor.Tools.RuntimeEditor;
 using BDFramework.ResourceMgr;
 using UnityEditor.SceneManagement;
 using Debug = UnityEngine.Debug;
@@ -32,13 +33,15 @@ namespace BDFramework.Editor.BuildPipeline
             Release,
 
             /// <summary>
-            /// Release for profiler
+            /// Release for profiler，
+            /// Release编译但是开启
             /// </summary>
             Profiler,
         }
 
         //打包场景
-        readonly public static string SCENEPATH = "Assets/Scenes/BDFrame.unity";
+        readonly public static string SCENE_PATH = "Assets/Scenes/BDFrame.unity";
+        readonly public static string QA_SCENE_PATH = "Assets/Scenes/BDFrameForQA.unity";
 
         readonly static public string[] SceneConfigs =
         {
@@ -72,7 +75,9 @@ namespace BDFramework.Editor.BuildPipeline
             config.ConfigText = textContent;
             Debug.LogFormat("【BuildPackage】 加载配置:{0} \n {1}", buildConfig, config.ConfigText);
             //保存场景
+            AssetDatabase.SaveAssets();
             EditorSceneManager.SaveScene(scene);
+            AssetDatabase.Refresh();
         }
 
         /// <summary>
@@ -86,6 +91,7 @@ namespace BDFramework.Editor.BuildPipeline
             switch (buildMode)
             {
                 case BuildMode.Debug:
+                case BuildMode.Profiler:
                 {
                     buildConfig = SceneConfigs[0];
                 }
@@ -98,9 +104,10 @@ namespace BDFramework.Editor.BuildPipeline
             }
 
             //build
-            return Build(buildMode, SCENEPATH, buildConfig, isGenAssets, outdir, buildTarget, buildOption);
+            return Build(buildMode, SCENE_PATH, buildConfig, isGenAssets, outdir, buildTarget, buildOption);
         }
 
+        static public bool IsBuilding { get;private set; } = false;
         /// <summary>
         /// 构建包体，使用当前配置、资源
         /// 这里默认建议使用单场景结构打包.
@@ -109,16 +116,23 @@ namespace BDFramework.Editor.BuildPipeline
             string outdir, BuildTarget buildTarget,
             BuildAssetsTools.BuildPackageOption buildOption = BuildAssetsTools.BuildPackageOption.BuildAll)
         {
+            if (IsBuilding)
+            {
+                return false;
+            }
+            IsBuilding = true;
+            //开始构建流程
             string addPackageNameStr = null;
             if (buildMode != BuildMode.Release)
             {
                 addPackageNameStr = "." + buildMode.ToString().ToLower();
             }
 
-            //不通模式的设置
+            //不同模式的设置
             switch (buildMode)
             {
                 case BuildMode.Debug:
+                case BuildMode.Profiler:
                 {
                     BDebugEditor.EnableDebug();
                 }
@@ -126,11 +140,6 @@ namespace BDFramework.Editor.BuildPipeline
                 case BuildMode.Release:
                 {
                     BDebugEditor.DisableDebug();
-                }
-                    break;
-                case BuildMode.Profiler:
-                {
-                    BDebugEditor.EnableDebug();
                 }
                     break;
             }
@@ -143,13 +152,13 @@ namespace BDFramework.Editor.BuildPipeline
             string applicationIdentifierCache = PlayerSettings.applicationIdentifier;
             if (addPackageNameStr != null)
             {
-                if (!PlayerSettings.productName.Contains(addPackageNameStr))
+                if (!PlayerSettings.productName.EndsWith(addPackageNameStr))
                 {
                     PlayerSettings.productName += addPackageNameStr;
                 }
-
+                
                 //包名
-                if (!PlayerSettings.applicationIdentifier.Contains(addPackageNameStr))
+                if (!PlayerSettings.applicationIdentifier.EndsWith(addPackageNameStr))
                 {
                     PlayerSettings.applicationIdentifier += addPackageNameStr;
                 }
@@ -171,8 +180,15 @@ namespace BDFramework.Editor.BuildPipeline
             Debug.Log("<color=green>===>2.生成资产</color>");
             if (isGenAssets)
             {
-                BuildAssetsTools.BuildAllAssets(buildRuntimePlatform, BApplication.DevOpsPublishAssetsPath,
-                    opa: buildOption);
+                try
+                {
+                    BuildAssetsTools.BuildAllAssets(buildRuntimePlatform, BApplication.DevOpsPublishAssetsPath, opa: buildOption);
+                }
+                catch (Exception e)
+                {
+                    EditorUtility.DisplayDialog("提示",$"打包资产失败!","ok");
+                    throw e;
+                }
             }
 
             bool buildResult = false;
@@ -215,18 +231,21 @@ namespace BDFramework.Editor.BuildPipeline
                 }
                 catch (Exception e)
                 {
-                    Debug.LogException(e);
+                    Debug.LogError($"打包失败!{e}");
                 }
 
-                DeleteCopyAssets(Application.streamingAssetsPath, buildRuntimePlatform);
+                //删除目录
+                Directory.Delete(Application.streamingAssetsPath,true);
+                //DeleteCopyAssets(Application.streamingAssetsPath, buildRuntimePlatform);
             }
             AssetDatabase.StopAssetEditing(); //恢复触发资源导入
 
             //恢复包名
             PlayerSettings.productName = productNameCache;
             PlayerSettings.applicationIdentifier = applicationIdentifierCache;
-
-
+            AssetDatabase.SaveAssets();
+            IsBuilding = false;
+            //返回构建结果
             return buildResult;
         }
 
@@ -242,7 +261,7 @@ namespace BDFramework.Editor.BuildPipeline
             //开启符号表
             EditorUserBuildSettings.androidCreateSymbolsZip = true;
 
-            if (!BDEditorApplication.BDFrameworkEditorSetting.IsSetConfig())
+            if (!BDEditorApplication.EditorSetting.IsSetConfig())
             {
                 //For ci
                 throw new Exception("请注意设置apk keystore账号密码");
@@ -254,13 +273,13 @@ namespace BDFramework.Editor.BuildPipeline
             {
                 case BuildMode.Debug:
                 {
-                    androidConfig = BDEditorApplication.BDFrameworkEditorSetting.AndroidDebug;
+                    androidConfig = BDEditorApplication.EditorSetting.AndroidDebug;
                 }
                     break;
                 case BuildMode.Release:
                 case BuildMode.Profiler:
                 {
-                    androidConfig = BDEditorApplication.BDFrameworkEditorSetting.Android;
+                    androidConfig = BDEditorApplication.EditorSetting.Android;
                 }
                     break;
             }
@@ -302,7 +321,7 @@ namespace BDFramework.Editor.BuildPipeline
             }
 
             //开始项目一键打包
-            string[] scenes = {SCENEPATH};
+            string[] scenes = { SCENE_PATH };
             BuildOptions opa = BuildOptions.None;
             switch (mode)
             {
@@ -370,7 +389,7 @@ namespace BDFramework.Editor.BuildPipeline
             }
 
             //开始项目一键打包
-            string[] scenes = {SCENEPATH};
+            string[] scenes = { SCENE_PATH };
             BuildOptions opa = BuildOptions.None;
 
             switch (mode)
@@ -392,7 +411,7 @@ namespace BDFramework.Editor.BuildPipeline
             var plist = outputPath + "/Info.plist";
             Debug.Log("plist:" + plist);
             //append模式
-            if (File.Exists(plist) && Application.platform == RuntimePlatform.OSXEditor) 
+            if (File.Exists(plist) && Application.platform == RuntimePlatform.OSXEditor)
             {
                 opa = (opa | BuildOptions.AcceptExternalModificationsToPlayer);
                 Debug.Log("--->生成xcode,depend模式");
@@ -408,8 +427,8 @@ namespace BDFramework.Editor.BuildPipeline
             {
                 //执行shell path
                 var shellPath = mode == BuildMode.Debug
-                    ? BDEditorApplication.BDFrameworkEditorSetting.iOSDebug.ExcuteShell
-                    : BDEditorApplication.BDFrameworkEditorSetting.iOS.ExcuteShell;
+                    ? BDEditorApplication.EditorSetting.iOSDebug.ExcuteShell
+                    : BDEditorApplication.EditorSetting.iOS.ExcuteShell;
                 if (File.Exists(shellPath))
                 {
                     //执行BuildIpa的shell
@@ -469,7 +488,7 @@ namespace BDFramework.Editor.BuildPipeline
 
 
             //开始项目一键打包
-            string[] scenes = {SCENEPATH};
+            string[] scenes = { SCENE_PATH };
             BuildOptions opa = BuildOptions.None;
             switch (mode)
             {
@@ -571,14 +590,16 @@ namespace BDFramework.Editor.BuildPipeline
             {
                 Directory.Delete(targetpath, true);
             }
-            
+
             //合并路径
-            var sourcepath = IPath.Combine(BApplication.DevOpsPublishAssetsPath, BApplication.GetPlatformPath(platform)).ToLower();
+            var sourcepath = IPath.Combine(BApplication.DevOpsPublishAssetsPath, BApplication.GetPlatformPath(platform))
+                .ToLower();
             targetpath = IPath.Combine(targetpath, BApplication.GetPlatformPath(platform)).ToLower();
             //TODO SVN更新资源
 
             //TODO  重写拷贝逻辑
-            var files = Directory.GetFiles(sourcepath, "*", SearchOption.AllDirectories).Select((f)=> f.ToLower().Replace("\\","/"));
+            var files = Directory.GetFiles(sourcepath, "*", SearchOption.AllDirectories)
+                .Select((f) => f.ToLower().Replace("\\", "/"));
             foreach (var file in files)
             {
                 var fp = IPath.ReplaceBackSlash(file);
@@ -592,7 +613,7 @@ namespace BDFramework.Editor.BuildPipeline
                     //路径
                     else
                     {
-                        return fp.EndsWith("/"+blackstr, StringComparison.OrdinalIgnoreCase);
+                        return fp.EndsWith("/" + blackstr, StringComparison.OrdinalIgnoreCase);
                     }
                 });
                 if (ret != null)

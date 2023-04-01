@@ -1,1 +1,45 @@
-{"CodeRoot":1,"SQLRoot":1,"ArtRoot":1,"CodeRunMode":0,"IsDebuggerILRuntime":false,"IsDebugLog":true,"FileServerUrl":"192.168.8.68","GateServerIp":"","Port":0,"IsHotfix":false,"IsNeedNet":false,"ClientVersionNum":"2.1.0"}
+
+[
+  {
+    "CodeRoot" : 1,
+    "SQLRoot"  : 1,
+    "ArtRoot"  : 1,
+    "CodeRunMode" : 0,
+    "IsDebuggerILRuntime" : false,
+    "IsDebugLog"          : true,
+    "IsHotfix"            : false,
+    "ClientVersionNum"    : "2.2.0",
+    "ClassType"           : "BDFramework.Configure.GameBaseConfigProcessor+Config"
+  },
+  {
+    "SqlitePassword" : "password1231222\uFF01\uFF01\uFF01",
+    "ScriptPubKey"   : "",
+    "ScriptPrivateKey" : "",
+    "ClassType"        : "BDFramework.Configure.GameCipherConfigProcessor+Config"
+  },
+  {
+    "IsNeedNet" : false,
+    "FileServerUrl" : "192.168.0.222",
+    "GateServerIp"  : "",
+    "Port"          : 0,
+    "ClassType"     : "Game.Config.ServerConfigProcessor+Config"
+  },
+  {
+    "Test1" : "111",
+    "Test2" : "111",
+    "Test3" : "111",
+    "ClassType" : "Game.Config.TestConfigProcessor+Config"
+  },
+  {
+    "Test1" : "222",
+    "Test2" : "222",
+    "Test3" : "222",
+    "ClassType" : "Game.Config.TestConfigProcessor2+Config"
+  },
+  {
+    "Test1" : "333-release.bytes",
+    "Test2" : "333-relase",
+    "Test3" : "333",
+    "ClassType" : "Game.Config.TestConfigProcessor3+Config"
+  }
+]

@@ -3,6 +3,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using BDFramework.Configure;
 using BDFramework.ResourceMgr.V2;
 using BDFramework.Core.Tools;
 using BDFramework.ResourceMgrV2;
@@ -52,17 +53,29 @@ namespace BDFramework.ResourceMgr
         /// <summary>
         /// ShaderVariant加载地址
         /// </summary>
-        readonly public static string ALL_SHADER_VARAINT_RUNTIME_PATH = "Shader/AllShaders";
+        readonly public static string ALL_SHADER_VARAINT_RUNTIME_PATH = "Shader";
 
         /// <summary>
         /// Shadervariant资源地址
         /// </summary>
-        readonly public static string ALL_SHADER_VARAINT_ASSET_PATH = "Assets/Resource/Runtime/" + ALL_SHADER_VARAINT_RUNTIME_PATH + ".shadervariants";
-
+        readonly public static string ALL_SHADER_VARAINT_ASSET_PATH = "Assets/Resource/Runtime/" + ALL_SHADER_VARAINT_RUNTIME_PATH;
+        /// <summary>
+        /// DummyShaderVaraint
+        /// </summary>
+        readonly public static string DUMMY_SHADER_PATH = "Shader/Dummy" ;
         /// <summary>
         /// 混淆ab的资源路径
         /// </summary>
         readonly static public string MIX_SOURCE_FOLDER = "Assets/Resource/Runtime/MIX_AB_SOURCE";
+
+        #endregion
+
+        #region  音乐根目录
+        /// <summary>
+        /// 音乐根目录
+        /// </summary>
+        readonly static public string SOUND_ASSET_PATH = "sound";
+        
 
         #endregion
 
@@ -95,6 +108,14 @@ namespace BDFramework.ResourceMgr
 
         #endregion
 
+        #region 配置相关
+
+        /// <summary>
+        /// 客户端-资源包服务器信息
+        /// </summary>
+        readonly static public string Launcher_CONF__PATH = "LauncherConfig";
+
+        #endregion
         /// <summary>
         /// 加载器
         /// </summary>
@@ -117,17 +138,19 @@ namespace BDFramework.ResourceMgr
         /// <param name="callback"></param>
         static public void Init(AssetLoadPathType loadPathType)
         {
+            BDebug.EnableLog(LoadTaskGroup.LogTag);
             BDebug.Log("【BResource】加载路径:" + loadPathType.ToString());
             if (loadPathType == AssetLoadPathType.Editor)
             {
-#if UNITY_EDITOR //防止编译报错
+#if UNITY_EDITOR 
+                //防止编译报错
                 ResLoader = new DevResourceMgr();
                 ResLoader.Init(null, RuntimePlatform.WindowsEditor);
 #endif
             }
             else
             {
-                var path = GameConfig.GetLoadPath(loadPathType);
+                var path = GameBaseConfigProcessor.GetLoadPath(loadPathType);
                 ResLoader = new AssetBundleMgrV2();
                 ResLoader.Init(path, BApplication.RuntimePlatform);
             }
@@ -392,6 +415,18 @@ namespace BDFramework.ResourceMgr
         #endregion
 
 
+
+        /// <summary>
+        /// 获取Assets路径
+        /// </summary>
+        /// <param name="floder"></param>
+        /// <param name="searchPattern"></param>
+        /// <returns></returns>
+       static public string[] GetAssets(string floder, string searchPattern = null)
+        {
+            return ResLoader.GetAssets(floder,searchPattern);
+        }
+        
         #region Shader操作
 
         /// <summary>
@@ -414,55 +449,6 @@ namespace BDFramework.ResourceMgr
         }
 
         #endregion
-
-        // #region 资源缓存
-        //
-        // /// <summary>
-        // /// 全局的资源缓存
-        // /// </summary>
-        // static private Dictionary<string, UnityEngine.Object> GameObjectCacheMap { get; set; } = new Dictionary<string, UnityEngine.Object>(StringComparer.OrdinalIgnoreCase);
-        //
-        // /// <summary>
-        // /// 从缓存中加载
-        // /// </summary>
-        // /// <param name="assetPath"></param>
-        // /// <returns></returns>
-        // static public void AddObjectToCache(Type type, string assetPath, Object obj)
-        // {
-        //     GameObjectCacheMap[assetPath] = obj;
-        // }
-        //
-        // /// <summary>
-        // /// 从缓存中加载
-        // /// </summary>
-        // /// <param name="assetPath"></param>
-        // /// <returns></returns>
-        // static public Object GetObjectFormCache(Type type, string assetPath)
-        // {
-        //     Object obj = null;
-        //     GameObjectCacheMap.TryGetValue(assetPath, out obj);
-        //     return obj;
-        // }
-        //
-        // /// <summary>
-        // /// 从缓存中加载
-        // /// </summary>
-        // /// <param name="assetPath"></param>
-        // /// <returns></returns>
-        // static public Object UnloadObjectCache(string assetPath)
-        // {
-        //     var ret = GameObjectCacheMap.TryGetValue(assetPath, out var obj);
-        //     if (ret)
-        //     {
-        //         GameObject.Destroy(obj);
-        //         GameObjectCacheMap.Remove(assetPath);
-        //     }
-        //
-        //
-        //     return obj;
-        // }
-        //
-        // #endregion
 
         #region 资源组，用于加载资源分组,方便卸载(Assetbundle)
 
@@ -651,7 +637,14 @@ namespace BDFramework.ResourceMgr
         static public GameObject LoadFormPool(string assetPath)
         {
             var obj = Load<GameObject>(assetPath);
-            return GameObjectPoolManager.SpawnObject(obj);
+            if (obj != null)
+            {
+                return GameObjectPoolManager.SpawnObject(obj);
+            }
+            else
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -661,7 +654,14 @@ namespace BDFramework.ResourceMgr
         static public GameObject LoadFormPool(string assetPath, Vector3 position, Quaternion rotation)
         {
             var obj = Load<GameObject>(assetPath);
-            return GameObjectPoolManager.SpawnObject(obj, position, rotation);
+            if (obj != null)
+            {
+                return GameObjectPoolManager.SpawnObject(obj, position, rotation);
+            }
+            else
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -709,7 +709,7 @@ namespace BDFramework.ResourceMgr
 
             /************母包资源的判断*************/
 
-            if (Application.isEditor && BDLauncher.Inst.GameConfig.ArtRoot == AssetLoadPathType.DevOpsPublish)
+            if (Application.isEditor && BDLauncher.Inst.Config.ArtRoot == AssetLoadPathType.DevOpsPublish)
             {
                 //devops
                 var devopsAssetPath = IPath.Combine(BApplication.DevOpsPublishAssetsPath, BApplication.GetPlatformPath(platform), assetName);
@@ -770,7 +770,7 @@ namespace BDFramework.ResourceMgr
 
 
             /************母包资源的判断*************/
-            if (Application.isEditor && BDLauncher.Inst.GameConfig.ArtRoot == AssetLoadPathType.DevOpsPublish)
+            if (Application.isEditor && BDLauncher.Inst.Config.ArtRoot == AssetLoadPathType.DevOpsPublish)
             {
                 //devops
                 var devopsAssetPath = IPath.Combine(BApplication.DevOpsPublishAssetsPath, BApplication.GetPlatformPath(platform), assetName);

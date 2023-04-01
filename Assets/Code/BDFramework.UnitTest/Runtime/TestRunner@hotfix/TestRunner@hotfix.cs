@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using BDFramework.Core.Tools;
 using BDFramework.Hotfix.Reflection;
+using DotNetExtension;
+using LitJson;
 using UnityEngine;
 
 namespace BDFramework.UnitTest
@@ -12,6 +16,28 @@ namespace BDFramework.UnitTest
     /// </summary>
     static public class TestRunner
     {
+        /// <summary>
+        /// Test方法的数据
+        /// </summary>
+        public class TestMethodData
+        {
+            public UnitTestBaseAttribute TestData;
+            public MethodInfo MethodInfo;
+        }
+
+        static string monoUniTestResultPath = BApplication.BDEditorCachePath + "/Unitest_Mono";
+        static string hotfixUniTestResultPath = BApplication.BDEditorCachePath + "/Unitest_Hotfix";
+
+        /// <summary>
+        /// 测试方法Map
+        /// </summary>
+        static public Dictionary<Type, List<TestMethodData>> TestMethodDataMap { get; private set; }
+
+        /// <summary>
+        /// 测试结果列表
+        /// </summary>
+        static public Dictionary<string, List<UniTestMethodResult>> TestResultMap { get; private set; }
+
         #region 对外的函数接口
 
         /// <summary>
@@ -22,42 +48,57 @@ namespace BDFramework.UnitTest
             Debug.ClearDeveloperConsole();
             Debug.Log("<color=red>----------------------开始测试MonoCLR-----------------------</color>");
             //热更模式
-            CollectTestClassData(TestType.MonoOrCLR);
+            TestMethodDataMap = CollectTestClassData(TestType.MonoOrCLR);
             //执行普通的测试
-            ExcuteTest<UnitTestAttribute>();
+            TestResultMap = ExcuteTest<UnitTestAttribute>();
+            
+            //保存本地
+            SaveTestDataToLocal(TestResultMap,false);
         }
+
 
         /// <summary>
         /// 执行所有的TestRunner
         /// </summary>
         static public void RunHotfixUnitTest()
         {
+            Debug.ClearDeveloperConsole();
             Debug.Log("<color=red>----------------------开始测试ILR-----------------------</color>");
             //搜集测试用例
-            CollectTestClassData(TestType.ILRuntime);
+            TestMethodDataMap = CollectTestClassData(TestType.ILRuntime);
             //1.执行普通的测试
             ExcuteTest<UnitTestAttribute>();
             //2.执行hotfix的测试
-            ExcuteTest<HotfixOnlyUnitTestAttribute>();
+            TestResultMap = ExcuteTest<HotfixOnlyUnitTestAttribute>();
+            //保存本地
+            SaveTestDataToLocal(TestResultMap,true);
         }
 
         #endregion
 
 
         /// <summary>
-        /// 测试函数的集合
+        /// 保存测试数据
         /// </summary>
-        private static Dictionary<Type, List<TestMethodData>> testMethodDataMap;
-
-        /// <summary>
-        /// Test方法的数据
-        /// </summary>
-        public class TestMethodData
+        /// <param name="ret"></param>
+        static public void SaveTestDataToLocal(object testRet,bool ishotFix)
         {
-            public UnitTestBaseAttribute TestData;
-            public MethodInfo            MethodInfo;
-        }
+            var path = "";
+            var hotfix = ishotFix?"_hotfix" : "";
+            if (Application.isEditor)
+            {
+                path = IPath.Combine(BApplication.DevOpsPath, $"TestRenner/UnitTest{hotfix}_{DateTimeEx.GetTotalSeconds()}");
+            }
+            else
+            {
+                path = IPath.Combine(Application.persistentDataPath, $"TestRenner/UnitTest{hotfix}_{DateTimeEx.GetTotalSeconds()}");
+            }
 
+            var json = JsonMapper.ToJson(testRet, true);
+            
+            FileHelper.WriteAllText(path,json);
+        }
+        
 
         /// <summary>
         /// 测试类型
@@ -71,9 +112,9 @@ namespace BDFramework.UnitTest
         /// <summary>
         /// 收集Test的数据
         /// </summary>
-        static public void CollectTestClassData(TestType testType)
+        static public Dictionary<Type, List<TestMethodData>> CollectTestClassData(TestType testType)
         {
-            testMethodDataMap = new Dictionary<Type, List<TestMethodData>>();
+            var retMap = new Dictionary<Type, List<TestMethodData>>();
             List<Type> types = new List<Type>();
             //判断不同的模式
 
@@ -106,12 +147,25 @@ namespace BDFramework.UnitTest
                 // var attrs = type.GetCustomAttributes(attribute,false);
                 // var attr = attrs[0] as HotfixTest;
                 var testMethodDataList = new List<TestMethodData>();
-                testMethodDataMap[type] = testMethodDataList;
+                retMap[type] = testMethodDataList;
                 //获取uit test并排序
-                foreach (var method in methods)
+                foreach (MethodInfo method in methods)
                 {
-                    var mattrs = method.GetCustomAttributes(attribute, false);
-                    var mattr  = mattrs[0] as UnitTestBaseAttribute;
+                    UnitTestBaseAttribute mattr = null;
+                    if (ILRuntimeHelper.IsRunning)
+                    {
+                        mattr = method.GetAttributeInILRuntime<UnitTestBaseAttribute>();
+                    }
+                    else
+                    {
+                        var mattrs = method.GetCustomAttributes(attribute, false);
+                        mattr = mattrs[0] as UnitTestBaseAttribute;
+                    }
+
+                    if (mattr == null)
+                    {
+                        continue;
+                    }
 
                     //数据
                     var newMethodData = new TestMethodData() {MethodInfo = method, TestData = mattr,};
@@ -136,47 +190,56 @@ namespace BDFramework.UnitTest
                     }
                 }
             }
+
+            return retMap;
+        }
+
+
+        public class UniTestMethodResult
+        {
+            /// <summary>
+            /// 方法名
+            /// </summary>
+            public string MedthodName = "";
+
+            /// <summary>
+            /// 方法描述
+            /// </summary>
+            public string MethodDes = "";
+
+            /// <summary>
+            /// 是否失败
+            /// </summary>
+            public bool isFail = false;
+
+            /// <summary>
+            /// 失败信息
+            /// </summary>
+            public string failMsg = "";
+
+            /// <summary>
+            /// 耗时
+            /// </summary>
+            public float time = 0;
         }
 
         /// <summary>
         /// 执行正常测试
         /// </summary>
-        // static public void ExcuteTest<T>() where T : UnitTestBaseAttribute
-        // {
-        //     foreach (var item in testMethodDataMap)
-        //     {
-        //         //判断当前执行的测试类型
-        //         var md = item.Value.FindAll((_item) => _item.TestData is T);
-        //         if (md.Count > 0)
-        //         {
-        //             Debug.LogFormat("<color=yellow>---->执行:{0} </color>", item.Key.FullName);
-        //         }
-        //
-        //         foreach (var methodData in md)
-        //         {
-        //             //开始执行测试
-        //             try
-        //             {
-        //                 methodData.MethodInfo.Invoke(null, null);
-        //                 Debug.LogFormat("<color=green>执行 {0}: 成功! - {1}</color>", methodData.TestData.Des, methodData.MethodInfo.Name);
-        //             }
-        //             catch (Exception e)
-        //             {
-        //                 Debug.LogErrorFormat("<color=red>执行 {0}: 失败! - {1}</color>", methodData.TestData.Des, methodData.MethodInfo.Name);
-        //
-        //                 // if (!ILRuntimeHelper.IsRunning)
-        //                 // {
-        //                 //
-        //                 //     //Debug.LogError(JsonMapper.ToJson(e.Data.Keys));
-        //                 // }
-        //             }
-        //         }
-        //     }
-        // }
-        static public void ExcuteTest<T>() where T : UnitTestBaseAttribute
+        static public Dictionary<string, List<UniTestMethodResult>> ExcuteTest<T>( string onlyTestClassName = "") where T : UnitTestBaseAttribute
         {
-            foreach (var item in testMethodDataMap)
+            Dictionary<string, List<UniTestMethodResult>> retMap = new Dictionary<string, List<UniTestMethodResult>>();
+            foreach (var item in TestMethodDataMap)
             {
+                //只执行某一个
+                if (!string.IsNullOrEmpty(onlyTestClassName))
+                {
+                    if (item.Key.FullName != onlyTestClassName)
+                    { 
+                        continue;
+                    }
+                }
+                
                 //判断当前执行的测试类型
                 var md = item.Value.FindAll((_item) => _item.TestData is T);
                 if (md.Count > 0)
@@ -184,35 +247,74 @@ namespace BDFramework.UnitTest
                     Debug.LogFormat("<color=yellow>---->执行:{0} </color>", item.Key.FullName);
                 }
 
+                List<UniTestMethodResult> resultList = new List<UniTestMethodResult>();
+                retMap[typeof(T).FullName] = resultList;
+                //
                 foreach (var methodData in md)
                 {
-                    bool   isFail  = false;
-                    string failMsg = "";
+                    var result = new UniTestMethodResult();
+                    result.MedthodName = methodData.MethodInfo.Name;
+                    result.MethodDes = methodData.TestData.Des;
                     //开始执行测试
                     try
                     {
                         methodData.MethodInfo.Invoke(null, null);
                         //采用最简单的状态模式，防止ilr下爆栈
-                        Assert.GetAssertStaus(out isFail, out failMsg);
+                        Assert.GetAssertStaus(out result.isFail, out result.failMsg, out result.time);
                         Assert.ClearStatus();
                     }
                     catch (Exception e)
                     {
-                        isFail  = true;
-                        Debug.LogError(e);
+                        result.isFail = true;
+                        if (e.InnerException != null)
+                        {
+                            Debug.LogError(e.InnerException);
+                        }
+                        else
+                        {
+                            Debug.LogError(e);
+                        }
                     }
 
-                    if (!isFail)
+
+                    var color = "";
+                    if (!result.isFail)
                     {
-                        Debug.LogFormat("<color=green>执行 {0}: 成功! - {1}</color>", methodData.TestData.Des, methodData.MethodInfo.Name);
+                        color = "green";
                     }
                     else
                     {
-                        Debug.LogFormat("<color=red>执行 {0}: 失败! - {1}</color>", methodData.TestData.Des, methodData.MethodInfo.Name);
-                     
+                        color = "red";
                     }
+
+                    if (result.time == 0)
+                    {
+                        if (result.isFail)
+                        {
+                            Debug.LogError($"<color={color}>执行 {methodData.TestData.Des}: {(result.isFail ? "失败" : "成功")}! - {methodData.MethodInfo.Name} </color>");
+                        }
+                        else
+                        {
+                            Debug.Log($"<color={color}>执行 {methodData.TestData.Des}: {(result.isFail ? "失败" : "成功")}! - {methodData.MethodInfo.Name} </color>");
+                        }
+                    }
+                    else
+                    {
+                        if (result.isFail)
+                        {
+                            Debug.LogError($"<color={color}>执行 {methodData.TestData.Des}: {(result.isFail ? "失败" : "成功")}! - {methodData.MethodInfo.Name}, 耗时：<color=yellow>{result.time} ms</color>. </color>");
+                        }
+                        else
+                        {
+                            Debug.Log($"<color={color}>执行 {methodData.TestData.Des}: {(result.isFail ? "失败" : "成功")}! - {methodData.MethodInfo.Name}, 耗时：<color=yellow>{result.time} ms</color>. </color>");
+                        }
+                    }
+
+                    resultList.Add(result);
                 }
             }
+
+            return retMap;
         }
     }
 }

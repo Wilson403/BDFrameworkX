@@ -4,11 +4,9 @@ using System.IO;
 using System.Linq;
 using BDFramework.Sql;
 using ILRuntime.Mono.Cecil.Pdb;
-using ILRuntime.Runtime;
 using ILRuntime.Runtime.Generated;
 using LitJson;
 using UnityEngine;
-using UnityEngine.Networking;
 using AppDomain = ILRuntime.Runtime.Enviorment.AppDomain;
 
 
@@ -27,14 +25,13 @@ namespace BDFramework
         /// 加载Hotfix程序集
         /// </summary>
         /// <param name="dllPath"></param>
-        /// <param name="gamelogicBindAction">游戏逻辑测注册</param>
+        /// <param name="gamelogicBind">游戏逻辑测注册</param>
         /// <param name="isDoCLRBinding"></param>
-        public static void LoadHotfix(string dllPath, Action<bool> gamelogicBindAction = null, bool isDoCLRBinding = true)
+        public static void LoadHotfix(string dllPath, Action<bool> gamelogicBind = null, bool isDoCLRBinding = true)
         {
             //
             IsRunning = true;
-            BDebug.Log("DLL加载路径:" + dllPath, "red");
-            //
+            BDebug.Log("DLL加载路径:" + dllPath, Color.red);
             string pdbPath = dllPath + ".pdb";
             //按需jit
             //AppDomain = new AppDomain(ILRuntimeJITFlags.JITOnDemand);
@@ -54,20 +51,19 @@ namespace BDFramework
             }
 
 
-#if UNITY_EDITOR
-            AppDomain.UnityMainThreadID = System.Threading.Thread.CurrentThread.ManagedThreadId;
-#endif
-
             //其他模块的binding，后注册的相同函数签名 会被跳过
             JsonMapper.RegisterCLRRedirection(AppDomain);
             SqliteHelper.RegisterCLRRedirection(AppDomain);
             ValueListenerEX_ILRuntimeAdaptor.RegisterCLRRedirection(AppDomain);
             EventListenerEx_ILRuntimeAdaptor.RegisterCLRRedirection(AppDomain);
             //clrbinding
-            gamelogicBindAction?.Invoke(isDoCLRBinding);
+            gamelogicBind?.Invoke(isDoCLRBinding);
             //开启debuger
-            if (BDLauncher.Inst != null && BDLauncher.Inst.GameConfig.IsDebuggerILRuntime)
+            if (BDLauncher.Inst != null && BDLauncher.Inst.Config.IsDebuggerILRuntime)
             {
+#if DEBUG
+                AppDomain.UnityMainThreadID = System.Threading.Thread.CurrentThread.ManagedThreadId;
+#endif
                 AppDomain.DebugService.StartDebugService(56000);
                 Debug.Log("[ILRuntime]调试端口:56000");
             }
@@ -76,21 +72,26 @@ namespace BDFramework
         /// <summary>
         /// ILRuntime卸载
         /// </summary>
-        public static void Close()
+        public static void Dispose()
         {
-            AppDomain = null;
-
+            AppDomain?.Dispose();
+            
             if (fsDll != null)
             {
                 fsDll.Close();
                 fsDll.Dispose();
+                fsDll = null;
             }
 
             if (fsPdb != null)
             {
                 fsPdb.Close();
                 fsPdb.Dispose();
+                fsPdb = null;
             }
+
+            AppDomain = null;
+            IsRunning = false;
         }
 
         #region hotfix类型
@@ -155,6 +156,7 @@ namespace BDFramework
             {
                 instance = Activator.CreateInstance(value_type);
             }
+
             return instance;
         }
 

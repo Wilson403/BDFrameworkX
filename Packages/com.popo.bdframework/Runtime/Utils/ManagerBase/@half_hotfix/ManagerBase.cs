@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using BDFramework.UFlux;
 using UnityEngine;
 
@@ -11,6 +12,7 @@ namespace BDFramework.Mgr
         /// int类型Tag
         /// </summary>
         public int IntTag { get; private set; } = -1;
+
         /// <summary>
         /// String类型tag
         /// </summary>
@@ -32,7 +34,7 @@ namespace BDFramework.Mgr
     /// </summary>
     /// <typeparam name="T">是管理器实例</typeparam>
     /// <typeparam name="V">标签属性</typeparam>
-   abstract public class ManagerBase<T, V> : IMgr where T : IMgr, new() where V : ManagerAttribute
+    abstract public class ManagerBase<T, V> : IMgr where T : IMgr, new() where V : ManagerAttribute
     {
         static private T i;
 
@@ -57,30 +59,38 @@ namespace BDFramework.Mgr
             this.ClassDataMap_IntKey = new Dictionary<int, ClassData>();
             this.ClassDataMap_StringKey = new Dictionary<string, ClassData>();
         }
-        
+
         /// <summary>
         /// 检测类型
         /// </summary>
         /// <param name="type"></param>
-        /// <param name="attribute"></param>
-        virtual public void CheckType(Type type, ManagerAttribute attribute)
+        /// <param name="attributes"></param>
+        virtual public bool CheckType(Type type, ManagerAttribute[] attributes)
         {
             //var vAttr = attribute as V;
-            
-            if (attribute is V vAttr)
+            bool ret = false;
+            foreach (var attr in attributes)
             {
-                
-                if (vAttr.IntTag != -1)
+                if (attr is V vAttr)
                 {
-                    SaveAttribute(vAttr.IntTag, new ClassData() {Attribute = vAttr, Type = type});
-                }
-                else if (vAttr.Tag != null)
-                {
-                    SaveAttribute(vAttr.Tag, new ClassData() {Attribute = vAttr, Type = type});
+                    if (vAttr.IntTag != -1)
+                    {
+                        SaveAttribute(vAttr.IntTag, new ClassData() {Attribute = vAttr, Type = type});
+                    }
+                    else if (vAttr.Tag != null)
+                    {
+                        SaveAttribute(vAttr.Tag, new ClassData() {Attribute = vAttr, Type = type});
+                    }
+
+                    ret = true;
                 }
             }
+
+            return ret;
         }
 
+
+        public bool IsStarted { get; private set; }
 
         /// <summary>
         /// 这里负责初始化任务
@@ -89,8 +99,12 @@ namespace BDFramework.Mgr
         {
         }
 
+        /// <summary>
+        /// 管理器开始
+        /// </summary>
         virtual public void Start()
         {
+            this.IsStarted = true;
         }
 
         /// <summary>
@@ -98,22 +112,18 @@ namespace BDFramework.Mgr
         /// </summary>
         /// <param name="tag"></param>
         /// <returns></returns>
-        public ClassData GetClassData(int tag)
+        public ClassData GetClassData(object tag)
         {
             ClassData classData = null;
-            this.ClassDataMap_IntKey.TryGetValue(tag, out classData);
-            return classData;
-        }
-
-        /// <summary>
-        /// 通过tag 获取class信息
-        /// </summary>
-        /// <param name="tag"></param>
-        /// <returns></returns>
-        public ClassData GetClassData(string tag)
-        {
-            ClassData classData = null;
-            this.ClassDataMap_StringKey.TryGetValue(tag, out classData);
+            if (tag is int i)
+            {
+                this.ClassDataMap_IntKey.TryGetValue(i, out classData);
+            }
+            else if (tag is string s)
+            {
+                this.ClassDataMap_StringKey.TryGetValue(s, out classData);
+            }
+            
             return classData;
         }
 
@@ -154,17 +164,36 @@ namespace BDFramework.Mgr
         /// <returns></returns>
         public IEnumerable<ClassData> GetAllClassDatas()
         {
-            IEnumerable<ClassData> classDatas = new List<ClassData>();
             if (this.ClassDataMap_IntKey.Count > 0)
             {
-                classDatas = this.ClassDataMap_IntKey.Values;
+                //key 从小到大排序
+                var keys = ClassDataMap_IntKey.Keys.ToList();
+                keys.Sort();
+                //压入
+                ClassData[] classDatas = new ClassData[keys.Count];
+                for (int i = 0; i < keys.Count; i++)
+                {
+                    classDatas[i] = this.ClassDataMap_IntKey[keys[i]];
+                }
+
+                return classDatas;
             }
             else if (this.ClassDataMap_StringKey.Count > 0)
             {
-                classDatas = this.ClassDataMap_StringKey.Values;
+                //key 从小到大排序
+                var keys = ClassDataMap_StringKey.Keys.ToList();
+                keys.Sort();
+                //压入
+                ClassData[] classDatas = new ClassData[keys.Count];
+                for (int i = 0; i < keys.Count; i++)
+                {
+                    classDatas[i] = this.ClassDataMap_StringKey[keys[i]];
+                }
+
+                return classDatas;
             }
 
-            return classDatas;
+            return new ClassData[0];
         }
 
         /// <summary>
@@ -172,19 +201,16 @@ namespace BDFramework.Mgr
         /// </summary>
         /// <param name="tag"></param>
         /// <param name="data"></param>
-        public void SaveAttribute(int tag, ClassData data)
+        private void SaveAttribute(object tag, ClassData data)
         {
-            this.ClassDataMap_IntKey[tag] = data;
-        }
-
-        /// <summary>
-        /// 保存属性
-        /// </summary>
-        /// <param name="tag"></param>
-        /// <param name="data"></param>
-        public void SaveAttribute(string tag, ClassData data)
-        {
-            this.ClassDataMap_StringKey[tag] = data;
+            if (tag is int i)
+            {
+                this.ClassDataMap_IntKey[i] = data;
+            }
+            else if (tag is string s)
+            {
+                this.ClassDataMap_StringKey[s] = data;
+            }
         }
 
 
@@ -221,7 +247,7 @@ namespace BDFramework.Mgr
         /// <param name="args"></param>
         /// <typeparam name="T2"></typeparam>
         /// <returns></returns>
-        public T2 CreateInstance<T2>(int tag, params object[] args) where T2 : class
+        public T2 CreateInstance<T2>(object tag, params object[] args) where T2 : class
         {
             var cd = GetClassData(tag);
             if (cd == null)
@@ -232,24 +258,6 @@ namespace BDFramework.Mgr
 
             return CreateInstance<T2>(cd, args);
         }
-
-        /// <summary>
-        /// 创建实例
-        /// </summary>
-        /// <param name="tag"></param>
-        /// <param name="args"></param>
-        /// <typeparam name="T2"></typeparam>
-        /// <returns></returns>
-        public T2 CreateInstance<T2>(string tag, params object[] args) where T2 : class
-        {
-            var cd = GetClassData(tag);
-            if (cd == null)
-            {
-                BDebug.LogError("没有找到:" + tag + " -" + typeof(T2).Name);
-                return null;
-            }
-
-            return CreateInstance<T2>(cd, args);
-        }
+        
     }
 }

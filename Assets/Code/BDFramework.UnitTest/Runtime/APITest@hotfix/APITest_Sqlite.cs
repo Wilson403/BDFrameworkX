@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using BDFramework.Core.Tools;
 using BDFramework.Sql;
 using BDFramework.UnitTest;
@@ -9,104 +10,140 @@ using UnityEngine;
 
 namespace BDFramework.UnitTest
 {
-    [UnitTest(des:  "数据库测试")]
+    [UnitTest(des: "数据库测试")]
     static public class APITest_Sqlite
     {
-        [UnitTest(des:  "初始化数据库")]
+        private static string dbname = "UnitestDB";
+
+        [UnitTest(des: "初始化数据库")]
         static public void Insert()
         {
-            //TODO 
-            //暂时热更内不支持创建插入操作
-            //该条测试可能会对后面有影响
-            var h1 = new APITestHero() {Id = 1};
-            var h2 = new APITestHero() {Id = 2};
-            var h3 = new APITestHero() {Id = 3};
-
-            if (!ILRuntimeHelper.IsRunning)
+            //构造插入数据
+            var insertList = new List<UniTestSqlite_AllType>();
+            for (int i = 0; i < 10000; i++)
             {
-                SqliteLoder.LoadLocalDBOnEditor(Application.streamingAssetsPath,BApplication.RuntimePlatform);
-                SqliteHelper.DB.CreateTable<APITestHero>();
-                SqliteHelper.DB.InsertTable(new List<APITestHero>() {h1, h2, h3});
+                var t = new UniTestSqlite_AllType() { Id = i };
+                insertList.Add(t);
             }
-            
+
+            //创建测试db
+            var dbpath = IPath.Combine(Application.persistentDataPath, dbname);
+            if (File.Exists(dbpath))
+            {
+                File.Delete(dbpath);
+            }
+            SqliteLoder.LoadDBReadWriteCreate(dbpath);
+            //if (!ILRuntimeHelper.IsRunning)
+            {
+                //Drop table
+                SqliteHelper.GetDB(dbname).CreateTable<UniTestSqlite_AllType>();
+                SqliteHelper.GetDB(dbname).InsertTable(insertList);
+            }
+            var ret = SqliteHelper.GetDB(dbname).GetTableRuntime().FromAll<UniTestSqlite_AllType>();
+            Debug.Log($"<color=yellow>插入条目：{ret.Count}</color>");
             Assert.IsPass(true);
         }
 
-
-        [UnitTest(des:  "单条件查询")]
+        [UnitTest(des: "单条件查询")]
         static public void Select()
         {
             //单条件查询
-            var ds = SqliteHelper.DB.GetTableRuntime().Where("id = 1").FromAll<APITestHero>();
+            Assert.StartWatch();
+            var ds = SqliteHelper.GetDB(dbname).GetTableRuntime().Where("id = 1").FromAll<UniTestSqlite_AllType>();
+            var time = Assert.StopWatch();
 
-            if (Assert.Equals(ds.Count, 1))
+            //对比返回数量和id
+            if (Assert.Equals(ds.Count, 1, time: time))
             {
-                Assert.Equals(ds[0].Id, 1d);
+                Assert.Equals(ds[0].Id, 1, time: time);
             }
         }
-        
-        [UnitTest(des:  "Limit查询")]
+
+        [UnitTest(des: "Limit查询")]
         static public void Limit()
         {
             //单条件查询
-            var d = SqliteHelper.DB.GetTableRuntime().Where("id != 1").Limit(1).From<APITestHero>();
+            Assert.StartWatch();
+            var d = SqliteHelper.GetDB(dbname).GetTableRuntime().Where("id != 1").Limit(1)
+                .From<UniTestSqlite_AllType>();
+            var time = Assert.StopWatch();
             if (d != null)
             {
                 Debug.Log(JsonMapper.ToJson(d));
             }
-            Assert.IsNull(d,"limit查询失败");
+
+            Assert.IsPass(d != null && d.Id != 1, time: time);
         }
 
-        [UnitTest(des:  "Or And语句查询")]
+        [UnitTest(des: "Or And语句查询")]
         static public void Select_OR_And()
         {
-            var ds = SqliteHelper.DB.GetTableRuntime().Where("id > 1").And.Where("id < 3").FromAll<APITestHero>();
+            Assert.StartWatch();
+            var ds = SqliteHelper.GetDB(dbname).GetTableRuntime().Where("id > 1").And.Where("id < 3")
+                .FromAll<UniTestSqlite_AllType>();
+            var time = Assert.StopWatch();
+
             Debug.Log(JsonMapper.ToJson(ds));
-            Assert.Equals(ds.Count, 1);
-            Assert.Equals(ds[0].Id, 2d);
-            
-            ds = SqliteHelper.DB.GetTableRuntime().Where("id = 1").Or.Where("id = 3").FromAll<APITestHero>();
+            Assert.Equals(ds.Count, 1, time: time);
+            Assert.Equals(ds[0].Id, 2, time: time);
+            //
+            Assert.StartWatch();
+            ds = SqliteHelper.GetDB(dbname).GetTableRuntime().Where("id = 1").Or.Where("id = 3")
+                .FromAll<UniTestSqlite_AllType>();
+            time = Assert.StopWatch();
             Debug.Log(JsonMapper.ToJson(ds));
-            Assert.Equals(ds.Count, 2);
-            Assert.Equals(ds[1].Id, 3d);
+            Assert.Equals(ds.Count, 2, time: time);
+            Assert.Equals(ds[0].Id, 1, time: time);
+            Assert.Equals(ds[1].Id, 3, time: time);
         }
 
 
-        [UnitTest(des:  "Where and 批量查询")]
+        [UnitTest(des: "Where and 批量查询")]
         static public void MultiSelect_WhereAnd()
         {
-            var ds = SqliteHelper.DB.GetTableRuntime().WhereAnd("id", "=", 1, 2).FromAll<APITestHero>();
-            Assert.Equals(ds.Count, 0);
+            Assert.StartWatch();
+            var ds = SqliteHelper.GetDB(dbname).GetTableRuntime().WhereAnd("id", "=", 1, 2)
+                .FromAll<UniTestSqlite_AllType>();
+            var time = Assert.StopWatch();
+
+            Assert.Equals(ds.Count, 0, time: time);
         }
 
-        [UnitTest(des:  "Where or 批量查询")]
+        [UnitTest(des: "Where or 批量查询")]
         static public void MultiSelect_WhereOr()
         {
-            var ds = SqliteHelper.DB.GetTableRuntime().WhereOr("id", "=", 2, 3).FromAll<APITestHero>();
+            Assert.StartWatch();
+            var ds = SqliteHelper.GetDB(dbname).GetTableRuntime().WhereOr("id", "=", 2, 3)
+                .FromAll<UniTestSqlite_AllType>();
+            var time = Assert.StopWatch();
 
-            Assert.Equals(ds.Count, 2);
-            Assert.Equals(ds[0].Id, 2d);
-            Assert.Equals(ds[1].Id, 3d);
+            Assert.Equals(ds.Count, 2, time: time);
+            Assert.Equals(ds[0].Id, 2, time: time);
+            Assert.Equals(ds[1].Id, 3, time: time);
         }
-        
-        [UnitTest(des:  "Where In 批量查询")]
+
+        [UnitTest(des: "Where In 批量查询")]
         static public void MultiSelect_WhereIn()
         {
-            var ds = SqliteHelper.DB.GetTableRuntime().WhereIn("id", 2, 3).FromAll<APITestHero>();
-            Assert.Equals(ds.Count, 2);
-            Assert.Equals(ds[0].Id, 2d);
-            Assert.Equals(ds[1].Id, 3d);
+            Assert.StartWatch();
+            var ds = SqliteHelper.GetDB(dbname).GetTableRuntime().WhereIn("id", 2, 3).FromAll<UniTestSqlite_AllType>();
+            var time = Assert.StopWatch();
+
+            Assert.Equals(ds.Count, 2, time: time);
+            Assert.Equals(ds[0].Id, 2, time: time);
+            Assert.Equals(ds[1].Id, 3, time: time);
         }
 
-        [UnitTest(des:  "OrderByDesc 批量查询")]
+        [UnitTest(des: "OrderByDesc 批量查询")]
         static public void MultiSelect_OrderByDesc()
         {
-            var ds = SqliteHelper.DB.GetTableRuntime().Where("Id >= 1").OrderByDesc("Id").FromAll<APITestHero>();
-            Debug.Log(JsonMapper.ToJson(ds));
-
+            Assert.StartWatch();
+            var ds = SqliteHelper.GetDB(dbname).GetTableRuntime().Where("Id >= 0").OrderByDesc("Id")
+                .FromAll<UniTestSqlite_AllType>();
+            var time = Assert.StopWatch();
             //降序检测
             bool isPass = true;
-            for (int i = 0; i < ds.Count-1; i++)
+            for (int i = 0; i < ds.Count - 1; i++)
             {
                 if (ds[i].Id < ds[i + 1].Id)
                 {
@@ -114,17 +151,23 @@ namespace BDFramework.UnitTest
                     break;
                 }
             }
-            Assert.IsPass(isPass);
+
+            Assert.IsPass(isPass, time: time);
         }
-        
-        [UnitTest(des:  "OrderBy 批量查询")]
+
+        [UnitTest(des: "OrderBy 批量查询")]
         static public void MultiSelect_OrderBy()
         {
-            var ds = SqliteHelper.DB.GetTableRuntime().Where("Id >= 1").OrderBy("Id").FromAll<APITestHero>();
-            Debug.Log(JsonMapper.ToJson(ds));
+            Assert.StartWatch();
+            BDebug.LogWatchBegin("order by");
+            var ds = SqliteHelper.GetDB(dbname).GetTableRuntime().Where("Id >= 0").OrderBy("Id")
+                .FromAll<UniTestSqlite_AllType>();
+            BDebug.LogWatchEnd("order by");
+            var time = Assert.StopWatch();
+
             //升序检测
             bool isPass = true;
-            for (int i = 0; i < ds.Count-1; i++)
+            for (int i = 0; i < ds.Count - 1; i++)
             {
                 if (ds[i].Id > ds[i + 1].Id)
                 {
@@ -132,16 +175,16 @@ namespace BDFramework.UnitTest
                     break;
                 }
             }
-            Assert.IsPass(isPass);
+
+            Assert.IsPass(isPass, time: time);
         }
 
         [UnitTest(10000, "关闭")]
         static public void Close()
         {
-            if (!Application.isPlaying)
-            {
-                SqliteLoder.Close();
-            }
+            SqliteLoder.Close(dbname);
+            var dbpath = IPath.Combine(Application.persistentDataPath, dbname);
+            // File.Delete(dbpath);
         }
     }
 }

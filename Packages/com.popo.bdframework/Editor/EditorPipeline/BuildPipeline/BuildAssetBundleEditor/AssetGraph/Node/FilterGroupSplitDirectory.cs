@@ -73,7 +73,7 @@ namespace BDFramework.Editor.AssetGraph.Node
 
         #region 渲染
 
-        private NodeGUI selfNodeGUI;
+        private NodeGUI selfNodeGUI { get; set; }
 
         /// <summary>
         /// 绘制NodeGUI
@@ -96,15 +96,7 @@ namespace BDFramework.Editor.AssetGraph.Node
          
             EditorGUILayout.HelpBox("该节点，用于分组 传入路径的所有子目录，默认只接受一个传入!", MessageType.Info);
         }
-
-        public override void OnContextMenuGUI(GenericMenu menu)
-        {
-            base.OnContextMenuGUI(menu);
-        }
-
-        private void InitOutputNode()
-        {
-        }
+        
 
         /// <summary>
         /// 添加
@@ -189,13 +181,16 @@ namespace BDFramework.Editor.AssetGraph.Node
                 return;
             }
 
-            var node = this.selfNodeGUI.Data.AddOutputPoint(path);
-            this.groupFilterPathDataList.Add(new GroupPathData()
+            if (this.selfNodeGUI != null)
             {
-                GroupPath = path,
-                OutputNodeId = node.Id
-            });
-            AssetGraphTools.UpdateConnectLine(this.selfNodeGUI, node);
+                var node = this.selfNodeGUI.Data.AddOutputPoint(path);
+                this.groupFilterPathDataList.Add(new GroupPathData()
+                {
+                    GroupPath = path,
+                    OutputNodeId = node.Id
+                });
+                AssetGraphTools.UpdateConnectLine(this.selfNodeGUI, node);
+            }
         }
 
         private PerformGraph.AssetGroups incommingAssetGroup = null;

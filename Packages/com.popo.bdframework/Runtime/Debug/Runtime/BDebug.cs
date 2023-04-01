@@ -22,7 +22,7 @@ public class BDebug : MonoBehaviour
     {
         get
         {
-            if (inst == null&& !Application.isPlaying)
+            if (inst == null && !Application.isPlaying)
             {
                 inst = FindObjectOfType<BDebug>();
                 if (!inst)
@@ -30,6 +30,7 @@ public class BDebug : MonoBehaviour
                     inst = new GameObject("BDebug").AddComponent<BDebug>();
                 }
             }
+
             return inst;
         }
     }
@@ -65,11 +66,30 @@ public class BDebug : MonoBehaviour
     [Conditional("ENABLE_BDEBUG")]
     public static void Log(object log)
     {
-        if (Inst!=null&&Inst.IsLog)
+        if (Inst != null && Inst.IsLog)
         {
             Debug.Log(log);
         }
-        
+    }
+
+    /// <summary>
+    /// Log
+    /// 为了兼容以前 字符串color 
+    /// </summary>
+    /// <param name="tagOrLog">日志内容</param>
+    /// <param name="color">色号</param>
+    [Conditional("ENABLE_BDEBUG")]
+    public static void Log(string tagOrLog, string logOrColor)
+    {
+        if (logOrColor.StartsWith("#")&&ColorUtility.TryParseHtmlString(logOrColor.Substring(1,logOrColor.Length-1), out var color))
+        {
+            Log(tagOrLog, color);
+        }
+        else
+        {
+            var log = ZString.Format("<color=#FFC63F>【{0}】</color> {1}", tagOrLog,  logOrColor);
+            Debug.Log(log);
+        }
     }
 
     /// <summary>
@@ -78,11 +98,11 @@ public class BDebug : MonoBehaviour
     /// <param name="log">日志内容</param>
     /// <param name="color">色号</param>
     [Conditional("ENABLE_BDEBUG")]
-    public static void Log(object log, string color)
+    public static void Log(string log, Color color)
     {
         if (Inst.IsLog)
         {
-            log = ZString.Format("<color={0}>{1}</color>", (object) color, log);
+            log = ZString.Format("<color=#{0}>{1}</color>", ColorUtility.ToHtmlStringRGBA(color), log);
             Debug.Log(log);
         }
     }
@@ -91,19 +111,32 @@ public class BDebug : MonoBehaviour
     /// 根据tag进行Log
     /// 需要通过EnableTag()、DisableTag()管理
     /// </summary>
-    /// <param name="tag">开关标记</param>
+    /// <param name="tagOrLog">开关标记</param>
     /// <param name="log">日志内容</param>
     /// <param name="color">色号</param>
     [Conditional("ENABLE_BDEBUG")]
-    public static void Log(string tag, object log, string color = "white")
+    public static void Log(string tagOrLog, string log, Color color)
     {
-        if (IsEnableTag(tag))
+        var colorStr = ColorUtility.ToHtmlStringRGBA(color);
+        Log(tagOrLog, log, colorStr);
+    }
+
+    /// <summary>
+    /// 根据tag进行Log
+    /// 需要通过EnableTag()、DisableTag()管理
+    /// </summary>
+    /// <param name="tagOrLog">开关标记</param>
+    /// <param name="log">日志内容</param>
+    /// <param name="color">色号</param>
+    [Conditional("ENABLE_BDEBUG")]
+    public static void Log(string tagOrLog, string log, string color)
+    {
+        if (IsEnableTag(tagOrLog))
         {
-            log = ZString.Format("【{0}】<color={1}>{2}</color>", tag, (object) color, log);
+            log = ZString.Format("<color=#FFC63F>【{0}】</color> <color=#{1}>{2}</color>", tagOrLog, color, log);
             Debug.Log(log);
         }
     }
-
 
     /// <summary>
     /// LogFormat
@@ -191,8 +224,8 @@ public class BDebug : MonoBehaviour
         var idx = Inst.LogTagList.FindIndex((t) => t.Tag == tag);
         if (idx < 0)
         {
-            var log = new LogTag() {Tag = tag, IsLog = true};
-            
+            var log = new LogTag() { Tag = tag, IsLog = true };
+
             Inst.LogTagList.Add(log);
 
             idx = Inst.LogTagList.Count - 1;
@@ -208,18 +241,20 @@ public class BDebug : MonoBehaviour
     [Conditional("ENABLE_BDEBUG")]
     static public void DisableTag(string tag)
     {
-        var idx = Inst.LogTagList.FindIndex((t) => t.Tag == tag);
-        if (idx < 0)
+        if (Inst)
         {
-            Inst.LogTagList.Add(new LogTag() {Tag = tag, IsLog = true});
-            idx = Inst.LogTagList.Count -1 ;
+            var idx = Inst.LogTagList.FindIndex((t) => t.Tag == tag);
+            if (idx < 0)
+            {
+                Inst.LogTagList.Add(new LogTag() { Tag = tag, IsLog = true });
+                idx = Inst.LogTagList.Count - 1;
+            }
+            Inst.LogTagList[idx].IsLog = false;
         }
-
-        Inst.LogTagList[idx].IsLog = false;
     }
 
     #endregion
-    
+
     /// <summary>
     /// watch缓存
     /// </summary>
@@ -233,11 +268,9 @@ public class BDebug : MonoBehaviour
     [Conditional("ENABLE_BDEBUG")]
     static public void LogWatchBegin(string watchTag)
     {
-#if UNITY_EDITOR
         Stopwatch sw = new Stopwatch();
         watchMap[watchTag] = sw;
         sw.Start();
-#endif
     }
 
     /// <summary>
@@ -247,24 +280,22 @@ public class BDebug : MonoBehaviour
     [Conditional("ENABLE_BDEBUG")]
     static public void LogWatchEnd(string watchTag, string color = "")
     {
-#if UNITY_EDITOR
         watchMap.TryGetValue(watchTag, out var sw);
-
         if (sw != null)
         {
             sw.Stop();
             if (string.IsNullOrEmpty(color))
             {
-                Debug.Log($"【{watchTag}】 耗时：{sw.ElapsedTicks / 10000f} ms");
+                Debug.Log($"【{watchTag}】 耗时：<color=yellow>{sw.ElapsedTicks / 10000f} ms</color>");
             }
             else
             {
-                Debug.Log($"<color={color}>【{watchTag}】 耗时：{sw.ElapsedTicks / 10000f} ms</color>");
+                Debug.Log(
+                    $"<color={color}>【{watchTag}】</color> 耗时：<color=yellow>{sw.ElapsedTicks / 10000f} ms</color>");
             }
 
             watchMap.Remove(watchTag);
         }
-#endif
     }
 
     /// <summary>
@@ -293,113 +324,3 @@ public class BDebug : MonoBehaviour
         }
     }
 }
-
-
-#if UNITY_EDITOR
-
-/// <summary>
-/// Bdebug的编辑器
-/// </summary>
-[CustomEditor(typeof(BDebug))]
-public class BDebugEditor : UnityEditor.Editor
-{
-    public override void OnInspectorGUI()
-    {
-        var debug = target as BDebug;
-
-        //log
-        debug.IsLog = EditorGUILayout.Toggle("EnableLog", debug.IsLog);
-        if (!Application.isPlaying)
-        {
-            if (debug.IsLog)
-            {
-                EnableDebug();
-            }
-            else
-            {
-                DisableDebug();
-            }
-        }
-
-        //开启log与否
-        debug.LogTagList.Sort((a, b) =>
-        {
-            //用tag排序
-            return string.Compare(a.Tag, b.Tag);
-        });
-        //
-        GUILayout.Label("Tag num:" + debug.LogTagList.Count);
-        foreach (var tag in debug.LogTagList)
-        {
-            GUILayout.BeginHorizontal();
-            {
-                GUILayout.Label("Tag: " + tag.Tag, GUILayout.Width(200));
-
-                tag.IsLog = EditorGUILayout.Toggle(tag.IsLog);
-            }
-            GUILayout.EndHorizontal();
-        }
-    }
-
-
-    /// <summary>
-    /// 打开debug
-    /// 此操作在打包前进行调用，管理ENABLE_BDEBUG宏
-    /// </summary>
-    static public void EnableDebug()
-    {
-        //增加宏
-        foreach (var bt in BApplication.SupportBuildTargetGroups)
-        {
-            var symbols = PlayerSettings.GetScriptingDefineSymbolsForGroup(bt);
-            if (!symbols.Contains(BDebug.ENABLE_BDEBUG))
-            {
-                string str = "";
-                if (!string.IsNullOrEmpty(symbols))
-                {
-                    if (!str.EndsWith(";"))
-                    {
-                        str = symbols + ";" + BDebug.ENABLE_BDEBUG;
-                    }
-                    else
-                    {
-                        str = symbols + BDebug.ENABLE_BDEBUG;
-                    }
-                }
-                else
-                {
-                    str = BDebug.ENABLE_BDEBUG;
-                }
-
-
-                PlayerSettings.SetScriptingDefineSymbolsForGroup(bt, str);
-            }
-        }
-    }
-
-
-    /// <summary>
-    /// 关闭debug
-    /// 此操作在打包前进行调用，管理ENABLE_BDEBUG宏
-    /// </summary>
-    static public void DisableDebug()
-    {
-        //移除宏
-        foreach (var bt in BApplication.SupportBuildTargetGroups)
-        {
-            var symbols = PlayerSettings.GetScriptingDefineSymbolsForGroup(bt);
-            if (symbols.Contains(BDebug.ENABLE_BDEBUG + ";"))
-            {
-                symbols = symbols.Replace(BDebug.ENABLE_BDEBUG + ";", "");
-            }
-            else if (symbols.Contains(BDebug.ENABLE_BDEBUG))
-            {
-                symbols = symbols.Replace(BDebug.ENABLE_BDEBUG, "");
-            }
-
-            PlayerSettings.SetScriptingDefineSymbolsForGroup(bt, symbols);
-        }
-    }
-}
-
-#endif

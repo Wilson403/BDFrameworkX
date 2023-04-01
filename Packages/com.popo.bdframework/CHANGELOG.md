@@ -1,5 +1,23 @@
 A Simple、Eesy、Profassional Game workflow!   - BDFramework.
 ---更新记录---
+##V2.2.0-preview.2
+-UFlux:增加Onfocus、OnBlur事件
+-Sqlite:修复import日志未生效bug
+-Sqlite:增加构建失败返回false
+-Sqlite:修复极端情况下string的格式出错问题
+-BuildPipeline:增加Shader受击变体分离
+-BuildPipeline:增加BuildCriware节点
+-BuildPipeline:增加构建包体时版本号的自动补充
+-GameSetting:修复新增Settiing未复制bug
+-SVNProcessor:增加所有命令鉴权
+
+##V2.2.0-preview.1
+-Sqlite3:化Sqlite反序列化速度
+-Sqlite3:基于Sqlite.Net 增加SqlCipher加密
+-GameConfig:增加自定义的GameConfig中心，以及获取方式。
+-GameConfig：重新绘制GameConfig面板
+-TestRunner：优化TestRunner机制,增加Result
+
 ##V2.1.0
 -BuildPipeline: 重构打包面板，优化打包流程
 -BuildPipeline: 增加DevOps优化支持
